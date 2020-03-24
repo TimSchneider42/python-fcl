@@ -20,22 +20,23 @@ from collision_data import Contact, CostSource, CollisionRequest, ContinuousColl
 # Transforms
 ###############################################################################
 cdef class Transform:
-    cdef defs.Transform3f *thisptr
+    cdef defs.Transform3d *thisptr
 
     def __cinit__(self, *args):
         if len(args) == 0:
-            self.thisptr = new defs.Transform3f()
+            self.thisptr = new defs.Transform3d()
+            self.thisptr.setIdentity()
         elif len(args) == 1:
             if isinstance(args[0], Transform):
-                self.thisptr = new defs.Transform3f(deref((<Transform> args[0]).thisptr))
+                self.thisptr = new defs.Transform3d(deref((<Transform> args[0]).thisptr))
             else:
                 data = numpy.array(args[0])
                 if data.shape == (3,3):
-                    self.thisptr = new defs.Transform3f(numpy_to_mat3f(data))
+                    self.thisptr = new defs.Transform3d(defs.mat3_to_transform(numpy_to_mat3f(data)))
                 elif data.shape == (4,):
-                    self.thisptr = new defs.Transform3f(numpy_to_quaternion3f(data))
+                    self.thisptr = new defs.Transform3d(defs.mat3_to_transform(numpy_to_quaternion3f(data).toRotationMatrix()))
                 elif data.shape == (3,):
-                    self.thisptr = new defs.Transform3f(numpy_to_vec3f(data))
+                    self.thisptr = new defs.Transform3d(defs.vec3_to_transform(numpy_to_vec3f(data)))
                 else:
                     raise ValueError('Invalid input to Transform().')
         elif len(args) == 2:
@@ -45,9 +46,9 @@ cdef class Transform:
                 raise ValueError('Translation must be (3,).')
 
             if rot.shape == (3,3):
-                self.thisptr = new defs.Transform3f(numpy_to_mat3f(rot), numpy_to_vec3f(trans))
+                self.thisptr = new defs.Transform3d(defs.mat3_vec3_to_transform(numpy_to_mat3f(rot), numpy_to_vec3f(trans)))
             elif rot.shape == (4,):
-                self.thisptr = new defs.Transform3f(numpy_to_quaternion3f(rot), numpy_to_vec3f(trans))
+                self.thisptr = new defs.Transform3d(defs.mat3_vec3_to_transform(numpy_to_quaternion3f(rot).toRotationMatrix(), numpy_to_vec3f(trans)))
             else:
                 raise ValueError('Invalid input to Transform().')
         else:
@@ -58,29 +59,29 @@ cdef class Transform:
             free(self.thisptr)
 
     def getRotation(self):
-        return mat3f_to_numpy(self.thisptr.getRotation())
+        return mat3f_to_numpy(self.thisptr.linear())
 
     def getTranslation(self):
-        return vec3f_to_numpy(self.thisptr.getTranslation())
+        return vec3f_to_numpy(self.thisptr.translation())
 
     def getQuatRotation(self):
-        return quaternion3f_to_numpy(self.thisptr.getQuatRotation())
+        return quaternion3f_to_numpy(defs.Quaterniond(self.thisptr.linear()))
 
     def setRotation(self, R):
-        self.thisptr.setRotation(numpy_to_mat3f(R))
+        defs.set_transform_rotation(self.thisptr, numpy_to_mat3f(R))
 
     def setTranslation(self, T):
-        self.thisptr.setTranslation(numpy_to_vec3f(T))
+        defs.set_transform_translation(self.thisptr, numpy_to_vec3f(T))
 
     def setQuatRotation(self, q):
-        self.thisptr.setQuatRotation(numpy_to_quaternion3f(q))
+        defs.set_transform_rotation(self.thisptr, numpy_to_quaternion3f(q).toRotationMatrix())
 
 ###############################################################################
 # Collision objects and geometries
 ###############################################################################
 
 cdef class CollisionObject:
-    cdef defs.CollisionObject *thisptr
+    cdef defs.CollisionObjectd *thisptr
     cdef defs.PyObject *geom
     cdef bool _no_instance
 
@@ -92,9 +93,9 @@ cdef class CollisionObject:
         self._no_instance = _no_instance
         if geom.getNodeType() is not None and not self._no_instance:
             if tf is not None:
-                self.thisptr = new defs.CollisionObject(defs.shared_ptr[defs.CollisionGeometry](geom.thisptr), deref(tf.thisptr))
+                self.thisptr = new defs.CollisionObjectd(defs.shared_ptr[defs.CollisionGeometryd](geom.thisptr), deref(tf.thisptr))
             else:
-                self.thisptr = new defs.CollisionObject(defs.shared_ptr[defs.CollisionGeometry](geom.thisptr))
+                self.thisptr = new defs.CollisionObjectd(defs.shared_ptr[defs.CollisionGeometryd](geom.thisptr))
             self.thisptr.setUserData(<void*> self.geom) # Save the python geometry object for later retrieval
         else:
             if not self._no_instance:
@@ -151,7 +152,7 @@ cdef class CollisionObject:
         return self.thisptr.isUncertain()
 
 cdef class CollisionGeometry:
-    cdef defs.CollisionGeometry *thisptr
+    cdef defs.CollisionGeometryd *thisptr
 
     def __cinit__(self):
         pass
@@ -188,153 +189,153 @@ cdef class CollisionGeometry:
 
 cdef class TriangleP(CollisionGeometry):
     def __cinit__(self, a, b, c):
-        self.thisptr = new defs.TriangleP(numpy_to_vec3f(a), numpy_to_vec3f(b), numpy_to_vec3f(c))
+        self.thisptr = new defs.TrianglePd(numpy_to_vec3f(a), numpy_to_vec3f(b), numpy_to_vec3f(c))
 
     property a:
         def __get__(self):
-            return vec3f_to_numpy((<defs.TriangleP*> self.thisptr).a)
+            return vec3f_to_numpy((<defs.TrianglePd*> self.thisptr).a)
         def __set__(self, value):
-            (<defs.TriangleP*> self.thisptr).a[0] = <double?> value[0]
-            (<defs.TriangleP*> self.thisptr).a[1] = <double?> value[1]
-            (<defs.TriangleP*> self.thisptr).a[2] = <double?> value[2]
+            (<defs.TrianglePd*> self.thisptr).a[0] = <double?> value[0]
+            (<defs.TrianglePd*> self.thisptr).a[1] = <double?> value[1]
+            (<defs.TrianglePd*> self.thisptr).a[2] = <double?> value[2]
 
     property b:
         def __get__(self):
-            return vec3f_to_numpy((<defs.TriangleP*> self.thisptr).b)
+            return vec3f_to_numpy((<defs.TrianglePd*> self.thisptr).b)
         def __set__(self, value):
-            (<defs.TriangleP*> self.thisptr).b[0] = <double?> value[0]
-            (<defs.TriangleP*> self.thisptr).b[1] = <double?> value[1]
-            (<defs.TriangleP*> self.thisptr).b[2] = <double?> value[2]
+            (<defs.TrianglePd*> self.thisptr).b[0] = <double?> value[0]
+            (<defs.TrianglePd*> self.thisptr).b[1] = <double?> value[1]
+            (<defs.TrianglePd*> self.thisptr).b[2] = <double?> value[2]
 
     property c:
         def __get__(self):
-            return vec3f_to_numpy((<defs.TriangleP*> self.thisptr).c)
+            return vec3f_to_numpy((<defs.TrianglePd*> self.thisptr).c)
         def __set__(self, value):
-            (<defs.TriangleP*> self.thisptr).c[0] = <double?> value[0]
-            (<defs.TriangleP*> self.thisptr).c[1] = <double?> value[1]
-            (<defs.TriangleP*> self.thisptr).c[2] = <double?> value[2]
+            (<defs.TrianglePd*> self.thisptr).c[0] = <double?> value[0]
+            (<defs.TrianglePd*> self.thisptr).c[1] = <double?> value[1]
+            (<defs.TrianglePd*> self.thisptr).c[2] = <double?> value[2]
 
 cdef class Box(CollisionGeometry):
     def __cinit__(self, x, y, z):
-        self.thisptr = new defs.Box(x, y, z)
+        self.thisptr = new defs.Boxd(x, y, z)
 
     property side:
         def __get__(self):
-            return vec3f_to_numpy((<defs.Box*> self.thisptr).side)
+            return vec3f_to_numpy((<defs.Boxd*> self.thisptr).side)
         def __set__(self, value):
-            (<defs.Box*> self.thisptr).side[0] = <double?> value[0]
-            (<defs.Box*> self.thisptr).side[1] = <double?> value[1]
-            (<defs.Box*> self.thisptr).side[2] = <double?> value[2]
+            (<defs.Boxd*> self.thisptr).side[0] = <double?> value[0]
+            (<defs.Boxd*> self.thisptr).side[1] = <double?> value[1]
+            (<defs.Boxd*> self.thisptr).side[2] = <double?> value[2]
 
 cdef class Sphere(CollisionGeometry):
     def __cinit__(self, radius):
-        self.thisptr = new defs.Sphere(radius)
+        self.thisptr = new defs.Sphered(radius)
 
     property radius:
         def __get__(self):
-            return (<defs.Sphere*> self.thisptr).radius
+            return (<defs.Sphered*> self.thisptr).radius
         def __set__(self, value):
-            (<defs.Sphere*> self.thisptr).radius = <double?> value
+            (<defs.Sphered*> self.thisptr).radius = <double?> value
 
 cdef class Ellipsoid(CollisionGeometry):
     def __cinit__(self, a, b, c):
-        self.thisptr = new defs.Ellipsoid(<double?> a, <double?> b, <double?> c)
+        self.thisptr = new defs.Ellipsoidd(<double?> a, <double?> b, <double?> c)
 
     property radii:
         def __get__(self):
-            return vec3f_to_numpy((<defs.Ellipsoid*> self.thisptr).radii)
+            return vec3f_to_numpy((<defs.Ellipsoidd*> self.thisptr).radii)
         def __set__(self, values):
-            (<defs.Ellipsoid*> self.thisptr).radii = numpy_to_vec3f(values)
+            (<defs.Ellipsoidd*> self.thisptr).radii = numpy_to_vec3f(values)
 
 cdef class Capsule(CollisionGeometry):
     def __cinit__(self, radius, lz):
-        self.thisptr = new defs.Capsule(radius, lz)
+        self.thisptr = new defs.Capsuled(radius, lz)
 
     property radius:
         def __get__(self):
-            return (<defs.Capsule*> self.thisptr).radius
+            return (<defs.Capsuled*> self.thisptr).radius
         def __set__(self, value):
-            (<defs.Capsule*> self.thisptr).radius = <double?> value
+            (<defs.Capsuled*> self.thisptr).radius = <double?> value
 
     property lz:
         def __get__(self):
-            return (<defs.Capsule*> self.thisptr).lz
+            return (<defs.Capsuled*> self.thisptr).lz
         def __set__(self, value):
-            (<defs.Capsule*> self.thisptr).lz = <double?> value
+            (<defs.Capsuled*> self.thisptr).lz = <double?> value
 
 cdef class Cone(CollisionGeometry):
     def __cinit__(self, radius, lz):
-        self.thisptr = new defs.Cone(radius, lz)
+        self.thisptr = new defs.Coned(radius, lz)
 
     property radius:
         def __get__(self):
-            return (<defs.Cone*> self.thisptr).radius
+            return (<defs.Coned*> self.thisptr).radius
         def __set__(self, value):
-            (<defs.Cone*> self.thisptr).radius = <double?> value
+            (<defs.Coned*> self.thisptr).radius = <double?> value
 
     property lz:
         def __get__(self):
-            return (<defs.Cone*> self.thisptr).lz
+            return (<defs.Coned*> self.thisptr).lz
         def __set__(self, value):
-            (<defs.Cone*> self.thisptr).lz = <double?> value
+            (<defs.Coned*> self.thisptr).lz = <double?> value
 
 cdef class Cylinder(CollisionGeometry):
     def __cinit__(self, radius, lz):
-        self.thisptr = new defs.Cylinder(radius, lz)
+        self.thisptr = new defs.Cylinderd(radius, lz)
 
     property radius:
         def __get__(self):
-            return (<defs.Cylinder*> self.thisptr).radius
+            return (<defs.Cylinderd*> self.thisptr).radius
         def __set__(self, value):
-            (<defs.Cylinder*> self.thisptr).radius = <double?> value
+            (<defs.Cylinderd*> self.thisptr).radius = <double?> value
 
     property lz:
         def __get__(self):
-            return (<defs.Cylinder*> self.thisptr).lz
+            return (<defs.Cylinderd*> self.thisptr).lz
         def __set__(self, value):
-            (<defs.Cylinder*> self.thisptr).lz = <double?> value
+            (<defs.Cylinderd*> self.thisptr).lz = <double?> value
 
 cdef class Halfspace(CollisionGeometry):
     def __cinit__(self, n, d):
-        self.thisptr = new defs.Halfspace(defs.Vec3f(<double?> n[0],
+        self.thisptr = new defs.Halfspaced(defs.Vector3d(<double?> n[0],
                                                      <double?> n[1],
                                                      <double?> n[2]),
                                           <double?> d)
 
     property n:
         def __get__(self):
-            return vec3f_to_numpy((<defs.Halfspace*> self.thisptr).n)
+            return vec3f_to_numpy((<defs.Halfspaced*> self.thisptr).n)
         def __set__(self, value):
-            (<defs.Halfspace*> self.thisptr).n[0] = <double?> value[0]
-            (<defs.Halfspace*> self.thisptr).n[1] = <double?> value[1]
-            (<defs.Halfspace*> self.thisptr).n[2] = <double?> value[2]
+            (<defs.Halfspaced*> self.thisptr).n[0] = <double?> value[0]
+            (<defs.Halfspaced*> self.thisptr).n[1] = <double?> value[1]
+            (<defs.Halfspaced*> self.thisptr).n[2] = <double?> value[2]
 
     property d:
         def __get__(self):
-            return (<defs.Halfspace*> self.thisptr).d
+            return (<defs.Halfspaced*> self.thisptr).d
         def __set__(self, value):
-            (<defs.Halfspace*> self.thisptr).d = <double?> value
+            (<defs.Halfspaced*> self.thisptr).d = <double?> value
 
 cdef class Plane(CollisionGeometry):
     def __cinit__(self, n, d):
-        self.thisptr = new defs.Plane(defs.Vec3f(<double?> n[0],
+        self.thisptr = new defs.Planed(defs.Vector3d(<double?> n[0],
                                                  <double?> n[1],
                                                  <double?> n[2]),
                                       <double?> d)
 
     property n:
         def __get__(self):
-            return vec3f_to_numpy((<defs.Plane*> self.thisptr).n)
+            return vec3f_to_numpy((<defs.Planed*> self.thisptr).n)
         def __set__(self, value):
-            (<defs.Plane*> self.thisptr).n[0] = <double?> value[0]
-            (<defs.Plane*> self.thisptr).n[1] = <double?> value[1]
-            (<defs.Plane*> self.thisptr).n[2] = <double?> value[2]
+            (<defs.Planed*> self.thisptr).n[0] = <double?> value[0]
+            (<defs.Planed*> self.thisptr).n[1] = <double?> value[1]
+            (<defs.Planed*> self.thisptr).n[2] = <double?> value[2]
 
     property d:
         def __get__(self):
-            return (<defs.Plane*> self.thisptr).d
+            return (<defs.Planed*> self.thisptr).d
         def __set__(self, value):
-            (<defs.Plane*> self.thisptr).d = <double?> value
+            (<defs.Planed*> self.thisptr).d = <double?> value
 
 cdef class BVHModel(CollisionGeometry):
     def __cinit__(self):
@@ -355,7 +356,7 @@ cdef class BVHModel(CollisionGeometry):
         return n
 
     def addVertex(self, x, y, z):
-        n = (<defs.BVHModel*> self.thisptr).addVertex(defs.Vec3f(<double?> x, <double?> y, <double?> z))
+        n = (<defs.BVHModel*> self.thisptr).addVertex(defs.Vector3d(<double?> x, <double?> y, <double?> z))
         return self._check_ret_value(n)
 
     def addTriangle(self, v1, v2, v3):
@@ -365,7 +366,7 @@ cdef class BVHModel(CollisionGeometry):
         return self._check_ret_value(n)
 
     def addSubModel(self, verts, triangles):
-        cdef vector[defs.Vec3f] ps
+        cdef vector[defs.Vector3d] ps
         cdef vector[defs.Triangle] tris
         for vert in verts:
             ps.push_back(numpy_to_vec3f(vert))
@@ -396,29 +397,32 @@ cdef class BVHModel(CollisionGeometry):
         else:
             return False
 
-cdef class OcTree(CollisionGeometry):
-    cdef octomap.OcTree* tree
+# TODO: OcTree is an optional component that will only be present when
+# FCL_HAVE_OCTOMAP is 1.
+#
+# cdef class OcTree(CollisionGeometry):
+#     cdef octomap.OcTree* tree
 
-    def __cinit__(self, r, data):
-        cdef std.stringstream ss
-        cdef vector[char] vd = data
-        ss.write(vd.data(), len(data))
+#     def __cinit__(self, r, data):
+#         cdef std.stringstream ss
+#         cdef vector[char] vd = data
+#         ss.write(vd.data(), len(data))
 
-        self.tree = new octomap.OcTree(r) 
-        self.tree.readBinaryData(ss)
-        self.thisptr = new defs.OcTree(defs.shared_ptr[octomap.OcTree](self.tree))
+#         self.tree = new octomap.OcTree(r) 
+#         self.tree.readBinaryData(ss)
+#         self.thisptr = new defs.OcTreed(defs.shared_ptr[octomap.OcTree](self.tree))
 
 
 ###############################################################################
 # Collision managers
 ###############################################################################
 
-cdef class DynamicAABBTreeCollisionManager:
-    cdef defs.DynamicAABBTreeCollisionManager *thisptr
+cdef class DynamicAABBTreeCollisionManagerd:
+    cdef defs.DynamicAABBTreeCollisionManagerd *thisptr
     cdef list objs
 
     def __cinit__(self):
-        self.thisptr = new defs.DynamicAABBTreeCollisionManager()
+        self.thisptr = new defs.DynamicAABBTreeCollisionManagerd()
         self.objs = []
 
     def __dealloc__(self):
@@ -426,7 +430,7 @@ cdef class DynamicAABBTreeCollisionManager:
             del self.thisptr
 
     def registerObjects(self, other_objs):
-        cdef vector[defs.CollisionObject*] pobjs
+        cdef vector[defs.CollisionObjectd*] pobjs
         for obj in other_objs:
             self.objs.append(obj)
             pobjs.push_back((<CollisionObject?> obj).thisptr)
@@ -445,7 +449,7 @@ cdef class DynamicAABBTreeCollisionManager:
         self.thisptr.setup()
 
     def update(self, arg=None):
-        cdef vector[defs.CollisionObject*] objs
+        cdef vector[defs.CollisionObjectd*] objs
         if hasattr(arg, "__len__"):
             for a in arg:
                 objs.push_back((<CollisionObject?> a).thisptr)
@@ -462,9 +466,9 @@ cdef class DynamicAABBTreeCollisionManager:
         if len(args) == 2 and inspect.isroutine(args[1]):
             fn = CollisionFunction(args[1], args[0])
             self.thisptr.collide(<void*> fn, CollisionCallBack)
-        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManager):
+        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManagerd):
             fn = CollisionFunction(args[2], args[1])
-            self.thisptr.collide((<DynamicAABBTreeCollisionManager?> args[0]).thisptr, <void*> fn, CollisionCallBack)
+            self.thisptr.collide((<DynamicAABBTreeCollisionManagerd?> args[0]).thisptr, <void*> fn, CollisionCallBack)
         elif len(args) == 3 and inspect.isroutine(args[2]):
             fn = CollisionFunction(args[2], args[1])
             self.thisptr.collide((<CollisionObject?> args[0]).thisptr, <void*> fn, CollisionCallBack)
@@ -475,9 +479,9 @@ cdef class DynamicAABBTreeCollisionManager:
         if len(args) == 2 and inspect.isroutine(args[1]):
             fn = DistanceFunction(args[1], args[0])
             self.thisptr.distance(<void*> fn, DistanceCallBack)
-        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManager):
+        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManagerd):
             fn = DistanceFunction(args[2], args[1])
-            self.thisptr.distance((<DynamicAABBTreeCollisionManager?> args[0]).thisptr, <void*> fn, DistanceCallBack)
+            self.thisptr.distance((<DynamicAABBTreeCollisionManagerd?> args[0]).thisptr, <void*> fn, DistanceCallBack)
         elif len(args) == 3 and inspect.isroutine(args[2]):
             fn = DistanceFunction(args[2], args[1])
             self.thisptr.distance((<CollisionObject?> args[0]).thisptr, <void*> fn, DistanceCallBack)
@@ -547,10 +551,10 @@ def collide(CollisionObject o1, CollisionObject o2,
     if result is None:
         result = CollisionResult()
 
-    cdef defs.CollisionResult cresult
+    cdef defs.CollisionResultd cresult
 
     cdef size_t ret = defs.collide(o1.thisptr, o2.thisptr,
-                                   defs.CollisionRequest(
+                                   defs.CollisionRequestd(
                                        <size_t?> request.num_max_contacts,
                                        <bool?> request.enable_contact,
                                        <size_t?> request.num_max_cost_sources,
@@ -562,12 +566,12 @@ def collide(CollisionObject o1, CollisionObject o2,
 
     result.is_collision = result.is_collision or cresult.isCollision()
 
-    cdef vector[defs.Contact] contacts
+    cdef vector[defs.Contactd] contacts
     cresult.getContacts(contacts)
     for idx in range(contacts.size()):
         result.contacts.append(c_to_python_contact(contacts[idx], o1, o2))
 
-    cdef vector[defs.CostSource] costs
+    cdef vector[defs.CostSourced] costs
     cresult.getCostSources(costs)
     for idx in range(costs.size()):
         result.cost_sources.append(c_to_python_costsource(costs[idx]))
@@ -583,13 +587,13 @@ def continuousCollide(CollisionObject o1, Transform tf1_end,
     if result is None:
         result = ContinuousCollisionResult()
 
-    cdef defs.ContinuousCollisionResult cresult
+    cdef defs.ContinuousCollisionResultd cresult
 
-    cdef defs.FCL_REAL ret = defs.continuousCollide(o1.thisptr, deref(tf1_end.thisptr),
+    cdef double ret = defs.continuousCollide(o1.thisptr, deref(tf1_end.thisptr),
                                                     o2.thisptr, deref(tf2_end.thisptr),
-                                                    defs.ContinuousCollisionRequest(
+                                                    defs.ContinuousCollisionRequestd(
                                                         <size_t?>             request.num_max_iterations,
-                                                        <defs.FCL_REAL?>      request.toc_err,
+                                                        <double?>      request.toc_err,
                                                         <defs.CCDMotionType?> request.ccd_motion_type,
                                                         <defs.GJKSolverType?> request.gjk_solver_type,
                                                         <defs.CCDSolverType?> request.ccd_solver_type,
@@ -609,10 +613,10 @@ def distance(CollisionObject o1, CollisionObject o2,
     if result is None:
         result = DistanceResult()
 
-    cdef defs.DistanceResult cresult
+    cdef defs.DistanceResultd cresult
 
     cdef double dis = defs.distance(o1.thisptr, o2.thisptr,
-                                    defs.DistanceRequest(
+                                    defs.DistanceRequestd(
                                         <bool?> request.enable_nearest_points,
                                         <defs.GJKSolverType?> request.gjk_solver_type
                                     ),
@@ -670,7 +674,7 @@ cdef class CollisionFunction:
         self.py_func = py_func
         self.py_args = py_args
 
-    cdef bool eval_func(self, defs.CollisionObject*o1, defs.CollisionObject*o2):
+    cdef bool eval_func(self, defs.CollisionObjectd*o1, defs.CollisionObjectd*o2):
         cdef object py_r = defs.PyObject_CallObject(self.py_func,
                                                     (copy_ptr_collision_object(o1),
                                                      copy_ptr_collision_object(o2),
@@ -686,18 +690,18 @@ cdef class DistanceFunction:
         self.py_func = py_func
         self.py_args = py_args
 
-    cdef bool eval_func(self, defs.CollisionObject*o1, defs.CollisionObject*o2, defs.FCL_REAL& dist):
+    cdef bool eval_func(self, defs.CollisionObjectd*o1, defs.CollisionObjectd*o2, double& dist):
         cdef object py_r = defs.PyObject_CallObject(self.py_func,
                                                     (copy_ptr_collision_object(o1),
                                                      copy_ptr_collision_object(o2),
                                                      self.py_args))
-        (&dist)[0] = <defs.FCL_REAL?> py_r[1]
+        (&dist)[0] = <double?> py_r[1]
         return <bool?> py_r[0]
 
-cdef inline bool CollisionCallBack(defs.CollisionObject*o1, defs.CollisionObject*o2, void*cdata):
+cdef inline bool CollisionCallBack(defs.CollisionObjectd*o1, defs.CollisionObjectd*o2, void*cdata):
     return (<CollisionFunction> cdata).eval_func(o1, o2)
 
-cdef inline bool DistanceCallBack(defs.CollisionObject*o1, defs.CollisionObject*o2, void*cdata, defs.FCL_REAL& dist):
+cdef inline bool DistanceCallBack(defs.CollisionObjectd*o1, defs.CollisionObjectd*o2, void*cdata, double& dist):
     return (<DistanceFunction> cdata).eval_func(o1, o2, dist)
 
 
@@ -705,37 +709,38 @@ cdef inline bool DistanceCallBack(defs.CollisionObject*o1, defs.CollisionObject*
 # Helper Functions
 ###############################################################################
 
-cdef quaternion3f_to_numpy(defs.Quaternion3f q):
-    return numpy.array([q.getW(), q.getX(), q.getY(), q.getZ()])
+cdef quaternion3f_to_numpy(defs.Quaterniond q):
+    return numpy.array([q.w(), q.x(), q.y(), q.z()])
 
-cdef defs.Quaternion3f numpy_to_quaternion3f(a):
-    return defs.Quaternion3f(<double?> a[0], <double?> a[1], <double?> a[2], <double?> a[3])
+cdef defs.Quaterniond numpy_to_quaternion3f(a):
+    return defs.Quaterniond(<double?> a[0], <double?> a[1], <double?> a[2], <double?> a[3])
 
-cdef vec3f_to_numpy(defs.Vec3f vec):
+cdef vec3f_to_numpy(defs.Vector3d vec):
     return numpy.array([vec[0], vec[1], vec[2]])
 
-cdef defs.Vec3f numpy_to_vec3f(a):
-    return defs.Vec3f(<double?> a[0], <double?> a[1], <double?> a[2])
+cdef defs.Vector3d numpy_to_vec3f(a):
+    return defs.Vector3d(<double?> a[0], <double?> a[1], <double?> a[2])
 
-cdef mat3f_to_numpy(defs.Matrix3f m):
+cdef mat3f_to_numpy(defs.Matrix3d m):
     return numpy.array([[m(0,0), m(0,1), m(0,2)],
                         [m(1,0), m(1,1), m(1,2)],
                         [m(2,0), m(2,1), m(2,2)]])
 
-cdef defs.Matrix3f numpy_to_mat3f(a):
-    return defs.Matrix3f(<double?> a[0][0], <double?> a[0][1], <double?> a[0][2],
-                         <double?> a[1][0], <double?> a[1][1], <double?> a[1][2],
-                         <double?> a[2][0], <double?> a[2][1], <double?> a[2][2])
+cdef defs.Matrix3d numpy_to_mat3f(a):
+    return defs.make_matrix_3d(
+        <double?> a[0][0], <double?> a[0][1], <double?> a[0][2],
+        <double?> a[1][0], <double?> a[1][1], <double?> a[1][2],
+        <double?> a[2][0], <double?> a[2][1], <double?> a[2][2])
 
-cdef c_to_python_collision_geometry(defs.const_CollisionGeometry*geom, CollisionObject o1, CollisionObject o2):
-    cdef CollisionGeometry o1_py_geom = <CollisionGeometry> ((<defs.CollisionObject*> o1.thisptr).getUserData())
-    cdef CollisionGeometry o2_py_geom = <CollisionGeometry> ((<defs.CollisionObject*> o2.thisptr).getUserData())
-    if geom == <defs.const_CollisionGeometry*> o1_py_geom.thisptr:
+cdef c_to_python_collision_geometry(defs.const_CollisionGeometryd* geom, CollisionObject o1, CollisionObject o2):
+    cdef CollisionGeometry o1_py_geom = <CollisionGeometry> ((<defs.CollisionObjectd*> o1.thisptr).getUserData())
+    cdef CollisionGeometry o2_py_geom = <CollisionGeometry> ((<defs.CollisionObjectd*> o2.thisptr).getUserData())
+    if geom == <defs.const_CollisionGeometryd*> o1_py_geom.thisptr:
         return o1_py_geom
     else:
         return o2_py_geom
 
-cdef c_to_python_contact(defs.Contact contact, CollisionObject o1, CollisionObject o2):
+cdef c_to_python_contact(defs.Contactd contact, CollisionObject o1, CollisionObject o2):
     c = Contact()
     c.o1 = c_to_python_collision_geometry(contact.o1, o1, o2)
     c.o2 = c_to_python_collision_geometry(contact.o2, o1, o2)
@@ -746,7 +751,7 @@ cdef c_to_python_contact(defs.Contact contact, CollisionObject o1, CollisionObje
     c.penetration_depth = contact.penetration_depth
     return c
 
-cdef c_to_python_costsource(defs.CostSource cost_source):
+cdef c_to_python_costsource(defs.CostSourced cost_source):
     c = CostSource()
     c.aabb_min = vec3f_to_numpy(cost_source.aabb_min)
     c.aabb_max = vec3f_to_numpy(cost_source.aabb_max)
@@ -754,7 +759,7 @@ cdef c_to_python_costsource(defs.CostSource cost_source):
     c.total_cost = cost_source.total_cost
     return c
 
-cdef copy_ptr_collision_object(defs.CollisionObject*cobj):
+cdef copy_ptr_collision_object(defs.CollisionObjectd* cobj):
     geom = <CollisionGeometry> cobj.getUserData()
     co = CollisionObject(geom, _no_instance=True)
     (<CollisionObject> co).thisptr = cobj
