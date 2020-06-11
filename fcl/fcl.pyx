@@ -417,7 +417,7 @@ cdef class BVHModel(CollisionGeometry):
 # Collision managers
 ###############################################################################
 
-cdef class DynamicAABBTreeCollisionManagerd:
+cdef class DynamicAABBTreeCollisionManager:
     cdef defs.DynamicAABBTreeCollisionManagerd *thisptr
     cdef list objs
 
@@ -466,9 +466,9 @@ cdef class DynamicAABBTreeCollisionManagerd:
         if len(args) == 2 and inspect.isroutine(args[1]):
             fn = CollisionFunction(args[1], args[0])
             self.thisptr.collide(<void*> fn, CollisionCallBack)
-        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManagerd):
+        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManager):
             fn = CollisionFunction(args[2], args[1])
-            self.thisptr.collide((<DynamicAABBTreeCollisionManagerd?> args[0]).thisptr, <void*> fn, CollisionCallBack)
+            self.thisptr.collide((<DynamicAABBTreeCollisionManager?> args[0]).thisptr, <void*> fn, CollisionCallBack)
         elif len(args) == 3 and inspect.isroutine(args[2]):
             fn = CollisionFunction(args[2], args[1])
             self.thisptr.collide((<CollisionObject?> args[0]).thisptr, <void*> fn, CollisionCallBack)
@@ -479,9 +479,9 @@ cdef class DynamicAABBTreeCollisionManagerd:
         if len(args) == 2 and inspect.isroutine(args[1]):
             fn = DistanceFunction(args[1], args[0])
             self.thisptr.distance(<void*> fn, DistanceCallBack)
-        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManagerd):
+        elif len(args) == 3 and isinstance(args[0], DynamicAABBTreeCollisionManager):
             fn = DistanceFunction(args[2], args[1])
-            self.thisptr.distance((<DynamicAABBTreeCollisionManagerd?> args[0]).thisptr, <void*> fn, DistanceCallBack)
+            self.thisptr.distance((<DynamicAABBTreeCollisionManager?> args[0]).thisptr, <void*> fn, DistanceCallBack)
         elif len(args) == 3 and inspect.isroutine(args[2]):
             fn = DistanceFunction(args[2], args[1])
             self.thisptr.distance((<CollisionObject?> args[0]).thisptr, <void*> fn, DistanceCallBack)
